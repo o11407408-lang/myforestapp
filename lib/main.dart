@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
       title: 'фокус дерево',
       theme: ThemeData(
         primarySwatch: Colors.green,
-        scaffoldBackgroundColor: Colors.white, // Чистый белый для контраста
+        scaffoldBackgroundColor: Colors.white,
       ),
       home: const FocusScreen(),
     );
@@ -26,12 +26,12 @@ class FocusScreen extends StatefulWidget {
   const FocusScreen({Key? key}) : super(key: key);
 
   @override
-  state<FocusScreen> createState() => _FocusScreenState();
+  State<FocusScreen> createState() => _FocusScreenState();
 }
 
 class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   bool _isFocusing = false;
-  int _secondsRemaining = 300; // 5 минут фокуса
+  int _secondsRemaining = 300;
   Timer? _timer;
   String _statusText = 'выберите дерево и начните сеанс';
   double _treeGrowth = 0.0;
@@ -52,7 +52,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // если пользователь свернул приложение или ушел из него, дерево погибает
     if (_isFocusing && (state == AppLifecycleState.paused || state == AppLifecycleState.inactive)) {
       _killTree();
     }
@@ -82,7 +81,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     _timer?.cancel();
     setState(() {
       _isFocusing = false;
-      // Используем темный зеленый для статуса "погибло"
       _statusText = 'вы покинули приложение! дерево погибло 🥀';
     });
   }
@@ -100,7 +98,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          // Градиент: Светло-зеленый к белому
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -114,7 +111,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // верхняя панель в стиле вашего приложения (зеленые акценты)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -141,7 +137,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // центральная карточка с деревом
                 Expanded(
                   child: Container(
                     width: double.infinity,
@@ -162,7 +157,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                         Container(
                           padding: const EdgeInsets.all(30),
                           decoration: const BoxDecoration(
-                            // Фон иконки: светло-зеленый
                             color: Color(0xFFE8F5E9),
                             shape: BoxShape.circle,
                           ),
@@ -171,7 +165,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                                 ? (_treeGrowth < 0.5 ? Icons.eco : Icons.park)
                                 : (_statusText.contains('погибло') ? Icons.park_outlined : Icons.spa),
                             size: 80,
-                            // Иконка: Основной зеленый или темный зеленый для гибели
                             color: _statusText.contains('погибло') ? Colors.green.shade900 : const Color(0xFF4CAF50),
                           ),
                         ),
@@ -193,7 +186,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                             padding: const EdgeInsets.symmetric(horizontal: 40),
                             child: LinearProgressIndicator(
                               value: _treeGrowth,
-                              // Прогресс бар: Светло-зеленый фон, Основной зеленый прогресс
                               backgroundColor: const Color(0xFFE8F5E9),
                               color: const Color(0xFF4CAF50),
                               minHeight: 8,
@@ -211,7 +203,6 @@ class _FocusScreenState extends State<FocusScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 20),
-                // кнопка посадки дерева (Основной зеленый)
                 if (!_isFocusing)
                   SizedBox(
                     width: double.infinity,
