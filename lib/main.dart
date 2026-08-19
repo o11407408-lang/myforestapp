@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
@@ -119,16 +118,6 @@ class NotificationService {
     try {
       tzdata.initializeTimeZones();
 
-      // Определяем реальный IANA-часовой пояс устройства (например
-      // "Europe/Moscow"), чтобы напоминание приходило именно в то локальное
-      // время, которое выбрал пользователь, а не по UTC-приближению.
-      try {
-        final String currentTimeZone = await FlutterTimezone.getLocalTimezone();
-        tz.setLocalLocation(tz.getLocation(currentTimeZone));
-      } catch (e) {
-        debugPrint('Не удалось определить часовой пояс устройства: $e');
-      }
-
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
@@ -191,12 +180,12 @@ class NotificationService {
     );
     const details = NotificationDetails(android: androidDetails);
 
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled =
-        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+    final now = DateTime.now();
+    var nextLocal = DateTime(now.year, now.month, now.day, hour, minute);
+    if (nextLocal.isBefore(now)) {
+      nextLocal = nextLocal.add(const Duration(days: 1));
     }
+    final scheduled = tz.TZDateTime.from(nextLocal.toUtc(), tz.UTC);
 
     try {
       await _plugin.zonedSchedule(
@@ -556,7 +545,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   decoration: InputDecoration(
                     hintText: 'например, Марат',
                     filled: true,
-                    fillColor: scheme.surfaceContainerHighest,
+                    fillColor: scheme.surfaceVariant,
                     counterText: '',
                     prefixIcon: const Icon(Icons.person_outline_rounded),
                     border: OutlineInputBorder(
@@ -811,7 +800,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               width: 78,
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
+                color: selected ? scheme.primaryContainer : scheme.surfaceVariant.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(18),
                 border: selected ? Border.all(color: scheme.primary, width: 2) : null,
               ),
@@ -963,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: scheme.surfaceContainerLow,
+                      color: scheme.surfaceVariant.withOpacity(0.4),
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: Column(
@@ -1008,7 +997,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               child: LinearProgressIndicator(
                                 value: _growth,
                                 minHeight: 8,
-                                backgroundColor: scheme.surfaceContainerHighest,
+                                backgroundColor: scheme.surfaceVariant,
                                 color: scheme.primary,
                               ),
                             ),
@@ -1120,7 +1109,7 @@ class StatsScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(28),
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: scheme.surfaceContainerLow,
+                      color: scheme.surfaceVariant.withOpacity(0.4),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(
@@ -1190,7 +1179,7 @@ class StatsScreen extends StatelessWidget {
                     return Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: scheme.surfaceContainerLow,
+                        color: scheme.surfaceVariant.withOpacity(0.4),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
@@ -1239,7 +1228,7 @@ class StatsScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: scheme.surfaceContainerLow,
+                        color: scheme.surfaceVariant.withOpacity(0.4),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -1283,7 +1272,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
+        color: scheme.surfaceVariant.withOpacity(0.4),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -1329,7 +1318,7 @@ class SettingsScreen extends StatelessWidget {
           autofocus: true,
           decoration: InputDecoration(
             filled: true,
-            fillColor: scheme.surfaceContainerHighest,
+            fillColor: scheme.surfaceVariant,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
@@ -1419,7 +1408,7 @@ class SettingsScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerLow,
+                    color: scheme.surfaceVariant.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: ListTile(
@@ -1441,7 +1430,7 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerLow,
+                    color: scheme.surfaceVariant.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
@@ -1503,7 +1492,7 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerLow,
+                    color: scheme.surfaceVariant.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: ListTile(
