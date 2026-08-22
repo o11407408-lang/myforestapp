@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -275,6 +276,11 @@ class AppState extends ChangeNotifier {
   int reminderMinute = 0;
   int themeIndex = 0;
 
+  /// Режим разработчика — открывает все виды деревьев для теста.
+  /// Не сохраняется на диск специально: включается заново каждый раз через
+  /// 2 нажатия на версию в настройках (только если имя — «Марат»).
+  bool devAllUnlocked = false;
+
   final List<FocusSession> history = [];
 
   static const _kUserName = 'userName';
@@ -405,6 +411,11 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
+  void unlockAllSpeciesForTesting() {
+    devAllUnlocked = true;
+    notifyListeners();
+  }
+
   /// Полный сброс: настройки, регистрация и лес. Пользователь возвращается
   /// на экран приветствия.
   Future<void> resetEverything() async {
@@ -418,6 +429,7 @@ class AppState extends ChangeNotifier {
     reminderHour = 20;
     reminderMinute = 0;
     themeIndex = 0;
+    devAllUnlocked = false;
     history.clear();
     await NotificationService.cancelDailyReminder();
     notifyListeners();
@@ -430,7 +442,8 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
-  bool isSpeciesUnlocked(TreeSpecies species) => successfulSessions >= species.unlockAt;
+  bool isSpeciesUnlocked(TreeSpecies species) =>
+      devAllUnlocked || successfulSessions >= species.unlockAt;
 
   int get totalSessions => history.length;
 
@@ -446,12 +459,8 @@ class AppState extends ChangeNotifier {
   int get currentStreak {
     final now = DateTime.now();
     // Сессии, у которых дата "из будущего" относительно текущего реального
-    // времени устройства, в серию не засчитываются. Это отсекает попытку
-    // накрутить серию переводом даты на телефоне вперёд: пока часы стоят
-    // "в будущем", день засчитывается, но как только настоящее время снова
-    // становится реальным (часы возвращают назад), такая запись перестаёт
-    // учитываться. Полностью защититься от подмены даты без серверного
-    // времени невозможно, но эта проверка закрывает основной сценарий.
+    // времени устройства, в серию не засчитываются — это отсекает попытку
+    // накрутить серию переводом даты на телефоне вперёд.
     final validSessions = history
         .where((s) => s.success && !s.date.isAfter(now))
         .toList();
@@ -737,6 +746,84 @@ Future<bool> showAppConfirmDialog(
   return result ?? false;
 }
 
+/// Центрированный диалог доната — по образцу «Я Коплю», но не снизу экрана,
+/// а по центру.
+Future<void> showDonateDialog(BuildContext context) async {
+  final scheme = Theme.of(context).colorScheme;
+  const cardNumber = '2202 2062 5366 7492';
+  await showDialog(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.45),
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.favorite_rounded, color: scheme.primary, size: 44),
+            const SizedBox(height: 14),
+            Text(
+              'Спасибо!',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: scheme.onSurface),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Поддержать разработчика',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: scheme.primary),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Приложение бесплатное и без подписок',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Карта: $cardNumber',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.copy_rounded, size: 18, color: scheme.primary),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: cardNumber.replaceAll(' ', '')));
+                      showAppSnackBar(context, 'Номер скопирован');
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Понятно'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Корневой виджет
 // ---------------------------------------------------------------------------
@@ -760,6 +847,13 @@ class _MyAppState extends State<MyApp> {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Grove',
+          locale: const Locale('ru'),
+          supportedLocales: const [Locale('ru')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: colorScheme,
@@ -788,9 +882,21 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
           ),
-          home: widget.appState.userName.isEmpty
-              ? RegistrationScreen(appState: widget.appState)
-              : HomeScreen(appState: widget.appState),
+          home: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 450),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.97, end: 1).animate(animation),
+                child: child,
+              ),
+            ),
+            child: widget.appState.userName.isEmpty
+                ? RegistrationScreen(key: const ValueKey('registration'), appState: widget.appState)
+                : HomeScreen(key: const ValueKey('home'), appState: widget.appState),
+          ),
         );
       },
     );
@@ -841,6 +947,27 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         _lastNameController.text.trim(),
       );
     }
+  }
+
+  InputDecoration _fieldDecoration(ColorScheme scheme, String hint, IconData icon) {
+    return InputDecoration(
+      hintText: hint,
+      filled: false,
+      counterText: '',
+      prefixIcon: Icon(icon, color: scheme.primary),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.primary.withOpacity(0.5), width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.error, width: 1.5),
+      ),
+    );
   }
 
   @override
@@ -899,17 +1026,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   textCapitalization: TextCapitalization.words,
                   maxLength: 20,
                   autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: 'Имя',
-                    filled: true,
-                    fillColor: scheme.surfaceVariant,
-                    counterText: '',
-                    prefixIcon: const Icon(Icons.person_outline_rounded),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  decoration: _fieldDecoration(scheme, 'Имя', Icons.person_outline_rounded),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Введите имя, чтобы продолжить';
@@ -922,17 +1039,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   controller: _lastNameController,
                   textCapitalization: TextCapitalization.words,
                   maxLength: 20,
-                  decoration: InputDecoration(
-                    hintText: 'Фамилия',
-                    filled: true,
-                    fillColor: scheme.surfaceVariant,
-                    counterText: '',
-                    prefixIcon: const Icon(Icons.badge_outlined),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  decoration: _fieldDecoration(scheme, 'Фамилия', Icons.badge_outlined),
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 24),
@@ -1195,65 +1302,72 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Кнопка-«пилюля» такого же вида, что и карточки видов деревьев —
-  /// гарантированно тот же box-model, что убирает малейшие расхождения в
-  /// выравнивании, которые были у стандартных ChoiceChip/ActionChip.
-  Widget _pillButton(
+  /// Кнопка-«пилюля» в один ряд с остальными — Expanded гарантирует, что все
+  /// сегменты (включая «своё») всегда помещаются в одну строку и по общей
+  /// ширине совпадают с остальными блоками экрана.
+  Widget _durationSegment(
     ColorScheme scheme, {
     required String label,
     required bool selected,
     required VoidCallback onTap,
     IconData? icon,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? scheme.primaryContainer : scheme.surfaceVariant.withOpacity(0.4),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? scheme.primary : scheme.outlineVariant,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-              ),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? scheme.primaryContainer : scheme.surfaceVariant.withOpacity(0.4),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? scheme.primary : scheme.outlineVariant,
+              width: selected ? 2 : 1,
             ),
-          ],
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 14, color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDurationChips(ColorScheme scheme) {
+  Widget _buildDurationRow(ColorScheme scheme) {
     const presets = [5, 10, 15, 25];
     final isCustom = !presets.contains(widget.appState.selectedDuration);
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    return Row(
       children: [
-        ...presets.map((minutes) => _pillButton(
-              scheme,
-              label: '$minutes мин',
-              selected: widget.appState.selectedDuration == minutes,
-              onTap: () => widget.appState.setDuration(minutes),
-            )),
-        _pillButton(
+        for (final minutes in presets)
+          _durationSegment(
+            scheme,
+            label: '$minutes мин',
+            selected: widget.appState.selectedDuration == minutes,
+            onTap: () => widget.appState.setDuration(minutes),
+          ),
+        _durationSegment(
           scheme,
-          label: isCustom ? '${widget.appState.selectedDuration} мин' : 'своё',
+          label: isCustom ? '${widget.appState.selectedDuration} мин' : 'Своё',
           selected: isCustom,
           icon: Icons.tune_rounded,
           onTap: _pickCustomDuration,
@@ -1282,7 +1396,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           title: Text(fullName),
           actions: [
             IconButton(
-              icon: const Icon(Icons.insights_rounded),
+              icon: const Icon(Icons.analytics_rounded),
               tooltip: 'Статистика',
               onPressed: _isFocusing
                   ? null
@@ -1345,7 +1459,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 10),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildDurationChips(scheme),
+                  child: _buildDurationRow(scheme),
                 ),
                 const SizedBox(height: 18),
               ],
@@ -1711,9 +1825,18 @@ class _StatCard extends StatelessWidget {
 // Экран настроек
 // ---------------------------------------------------------------------------
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   final AppState appState;
   const SettingsScreen({super.key, required this.appState});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  int _versionTapCount = 0;
+
+  AppState get appState => widget.appState;
 
   Future<void> _editName(BuildContext context) async {
     final nameController = TextEditingController(text: appState.userName);
@@ -1784,6 +1907,7 @@ class SettingsScreen extends StatelessWidget {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: appState.reminderHour, minute: appState.reminderMinute),
+      initialEntryMode: TimePickerEntryMode.inputOnly,
     );
     if (picked != null) {
       await appState.setReminderTime(picked.hour, picked.minute);
@@ -1811,6 +1935,17 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  void _onVersionTap() {
+    _versionTapCount++;
+    if (_versionTapCount >= 2) {
+      _versionTapCount = 0;
+      if (appState.userName.toLowerCase() == 'марат') {
+        appState.unlockAllSpeciesForTesting();
+        showAppSnackBar(context, 'Режим разработчика активирован!', icon: Icons.bug_report_rounded);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -1825,20 +1960,25 @@ class SettingsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: scheme.surfaceVariant.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: ListTile(
+                    dense: true,
                     contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
+                      radius: 18,
                       backgroundColor: scheme.primaryContainer,
-                      child: Icon(Icons.person_rounded, color: scheme.primary),
+                      child: Icon(Icons.person_rounded, color: scheme.primary, size: 18),
                     ),
-                    title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: const Text('Изменить имя'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                    title: Text(
+                      fullName,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    subtitle: const Text('Изменить имя', style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                     onTap: () => _editName(context),
                   ),
                 ),
@@ -1854,14 +1994,6 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      SwitchListTile(
-                        title: const Text('Ежедневное напоминание'),
-                        subtitle: const Text('Напоминать посадить дерево'),
-                        value: appState.notificationsEnabled,
-                        onChanged: (v) => appState.toggleNotifications(v),
-                        secondary: const Icon(Icons.notifications_outlined),
-                      ),
-                      const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.alarm_rounded),
                         title: const Text('Время напоминания'),
@@ -1869,6 +2001,14 @@ class SettingsScreen extends StatelessWidget {
                         trailing: const Icon(Icons.chevron_right_rounded),
                         enabled: appState.notificationsEnabled,
                         onTap: () => _pickReminderTime(context),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        title: const Text('Ежедневное напоминание'),
+                        subtitle: const Text('Напоминать посадить дерево'),
+                        value: appState.notificationsEnabled,
+                        onChanged: (v) => appState.toggleNotifications(v),
+                        secondary: const Icon(Icons.notifications_outlined),
                       ),
                       const Divider(height: 1),
                       SwitchListTile(
@@ -1898,6 +2038,23 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+                Text('Поддержка',
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceVariant.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: ListTile(
+                    leading: Icon(Icons.favorite_rounded, color: scheme.primary),
+                    title: const Text('Поддержать разработчика'),
+                    subtitle: const Text('Приложение бесплатное и без подписок'),
+                    onTap: () => showDonateDialog(context),
+                  ),
+                ),
+                const SizedBox(height: 24),
                 Text('Данные',
                     style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
@@ -1915,8 +2072,11 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Center(
-                  child: Text('Grove · v1.2',
-                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  child: GestureDetector(
+                    onTap: _onVersionTap,
+                    child: Text('Grove · v1.2',
+                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  ),
                 ),
               ],
             ),
