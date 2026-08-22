@@ -412,7 +412,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> resetSettings() async {
-    // Сбрасывает только настройки. Лес (history) не трогаем.
+    // Сбрасывает все настройки и регистрацию — пользователь возвращается на
+    // экран приветствия. Лес (history) не трогаем.
+    userName = '';
+    lastName = '';
     selectedDuration = 15;
     selectedSpeciesId = 'oak';
     notificationsEnabled = true;
@@ -421,12 +424,9 @@ class AppState extends ChangeNotifier {
     reminderHour = 20;
     reminderMinute = 0;
     themeIndex = 0;
+    await NotificationService.cancelDailyReminder();
     notifyListeners();
     await _persist();
-    await NotificationService.scheduleDailyReminder(
-      hour: reminderHour,
-      minute: reminderMinute,
-    );
   }
 
   void addSession(FocusSession session) {
@@ -545,72 +545,126 @@ Route<T> smoothRoute<T>(Widget page) {
   );
 }
 
+OverlayEntry? _activeToast;
+
 void showAppSnackBar(
   BuildContext context,
   String message, {
   IconData icon = Icons.check_circle_rounded,
 }) {
-  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: const Color(0xFF4CAF50),
-      elevation: 0,
-      duration: const Duration(seconds: 3),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      content: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+  _activeToast?.remove();
+  _activeToast = null;
+
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (context) => _AppToast(
+      message: message,
+      onDismissed: () {
+        entry.remove();
+        if (_activeToast == entry) _activeToast = null;
+      },
     ),
   );
+  _activeToast = entry;
+  overlay.insert(entry);
+}
+
+class _AppToast extends StatefulWidget {
+  final String message;
+  final VoidCallback onDismissed;
+  const _AppToast({required this.message, required this.onDismissed});
+
+  @override
+  State<_AppToast> createState() => _AppToastState();
+}
+
+class _AppToastState extends State<_AppToast> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _offset;
+  late final Animation<double> _opacity;
+  Timer? _autoDismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+      reverseDuration: const Duration(milliseconds: 260),
+    );
+    final curved = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _offset = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(curved);
+    _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
+    _controller.forward();
+    _autoDismissTimer = Timer(const Duration(milliseconds: 2600), _dismiss);
+  }
+
+  Future<void> _dismiss() async {
+    if (!mounted) return;
+    _autoDismissTimer?.cancel();
+    await _controller.reverse();
+    widget.onDismissed();
+  }
+
+  @override
+  void dispose() {
+    _autoDismissTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 16,
+      child: SafeArea(
+        top: false,
+        child: SlideTransition(
+          position: _offset,
+          child: FadeTransition(
+            opacity: _opacity,
+            child: Material(
+              color: Colors.transparent,
+              child: GestureDetector(
+                onTap: _dismiss,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    widget.message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Темы оформления
-// ---------------------------------------------------------------------------
-
-class AppThemeOption {
-  final String name;
-  final Color swatch;
-  final ColorScheme colorScheme;
-  final Color background;
-
-  const AppThemeOption({
-    required this.name,
-    required this.swatch,
-    required this.colorScheme,
-    required this.background,
-  });
-}
-
-final List<AppThemeOption> appThemes = [
-  AppThemeOption(
-    name: 'Тема 1',
-    swatch: const Color(0xFF2E7D32),
-    colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-    background: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)).surface,
-  ),
-  AppThemeOption(
-    name: 'Тема 2',
-    swatch: const Color(0xFF4CAF50),
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF4CAF50),
-      brightness: Brightness.light,
-    ).copyWith(
-      surface: Colors.white,
-      surfaceVariant: const Color(0xFFE8F5E9),
-      primaryContainer: const Color(0xFFE8F5E9),
-    ),
-    background: Colors.white,
-  ),
-];
-
 // ---------------------------------------------------------------------------
 // Корневой виджет
 // ---------------------------------------------------------------------------
@@ -626,17 +680,18 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32));
+
     return ListenableBuilder(
       listenable: widget.appState,
       builder: (context, _) {
-        final colorScheme = appThemes[widget.appState.themeIndex].colorScheme;
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Grove',
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: colorScheme,
-            scaffoldBackgroundColor: appThemes[widget.appState.themeIndex].background,
+            scaffoldBackgroundColor: colorScheme.surface,
             appBarTheme: AppBarTheme(
               backgroundColor: colorScheme.surface,
               foregroundColor: colorScheme.onSurface,
@@ -650,6 +705,8 @@ class _MyAppState extends State<MyApp> {
             ),
             filledButtonTheme: FilledButtonThemeData(
               style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF43A047),
+                foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(56),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
@@ -688,13 +745,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   @override
   void initState() {
     super.initState();
-    // Убираем системную шторку (статус-бар и навигацию) на экране регистрации.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // Делаем статус-бар прозрачным и с тёмными иконками (фон экрана светлый),
+    // вместо попытки полностью скрыть его — это не даёт чёрной полосы,
+    // которая появлялась в immersive-режиме на некоторых устройствах.
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ));
   }
 
   @override
   void dispose() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _nameController.dispose();
     _lastNameController.dispose();
     super.dispose();
@@ -799,12 +861,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       borderSide: BorderSide.none,
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Введите Фамилию, Чтобы Продолжить';
-                    }
-                    return null;
-                  },
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 24),
@@ -835,8 +891,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  static const List<int> _presets = [5, 10, 15];
-
   bool _isFocusing = false;
   late int _totalSeconds;
   late int _secondsRemaining;
@@ -1081,51 +1135,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _durationSegment(
-    ColorScheme scheme, {
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: 48,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? scheme.primaryContainer : scheme.surfaceVariant.withOpacity(0.4),
-            border: selected ? Border.all(color: scheme.primary, width: 2) : null,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDurationRow(ColorScheme scheme) {
-    final isCustom = !_presets.contains(widget.appState.selectedDuration);
-    return Row(
+  Widget _buildDurationChips(ColorScheme scheme) {
+    const presets = [5, 10, 15, 25, 30, 45, 60];
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
       children: [
-        for (final minutes in _presets)
-          _durationSegment(
-            scheme,
-            label: '$minutes Мин',
-            selected: widget.appState.selectedDuration == minutes,
-            onTap: () => widget.appState.setDuration(minutes),
+        ...presets.map((minutes) => ChoiceChip(
+              label: Text('$minutes Мин'),
+              selected: widget.appState.selectedDuration == minutes,
+              onSelected: (_) => widget.appState.setDuration(minutes),
+              selectedColor: scheme.primaryContainer,
+              backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+              labelStyle: TextStyle(
+                color: widget.appState.selectedDuration == minutes
+                    ? scheme.onPrimaryContainer
+                    : scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: scheme.outlineVariant),
+              ),
+            )),
+        ActionChip(
+          avatar: Icon(Icons.tune_rounded, size: 18, color: scheme.onSurfaceVariant),
+          label: Text(
+            presets.contains(widget.appState.selectedDuration)
+                ? 'Своё'
+                : '${widget.appState.selectedDuration} Мин',
           ),
-        _durationSegment(
-          scheme,
-          label: isCustom ? '${widget.appState.selectedDuration} Мин' : 'Своё',
-          selected: isCustom,
-          onTap: _pickCustomDuration,
+          onPressed: _pickCustomDuration,
+          backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: scheme.outlineVariant),
+          ),
         ),
       ],
     );
@@ -1212,9 +1257,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: _buildDurationRow(scheme),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildDurationChips(scheme),
                 ),
                 const SizedBox(height: 18),
               ],
@@ -1681,7 +1726,7 @@ class SettingsScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Сбросить Настройки?'),
         content: const Text(
-            'Уведомления, Звук, Вибрация И Тема Вернутся К Значениям По Умолчанию. Лес И Прогресс Останутся Как Есть.'),
+            'Все Настройки И Регистрация Будут Сброшены — Вы Вернётесь На Экран Приветствия. Лес И Прогресс Останутся Как Есть.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
           TextButton(
@@ -1695,7 +1740,7 @@ class SettingsScreen extends StatelessWidget {
     if (confirmed == true) {
       await appState.resetSettings();
       if (context.mounted) {
-        showAppSnackBar(context, 'Настройки Сброшены', icon: Icons.restart_alt_rounded);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
   }
@@ -1756,51 +1801,6 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: const Text('Изменить Имя'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => _editName(context),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text('Тема',
-                    style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceVariant.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < appThemes.length; i++) ...[
-                        GestureDetector(
-                          onTap: () => appState.setTheme(i),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: appThemes[i].swatch,
-                                  shape: BoxShape.circle,
-                                  border: appState.themeIndex == i
-                                      ? Border.all(color: scheme.onSurface, width: 3)
-                                      : null,
-                                ),
-                                child: appState.themeIndex == i
-                                    ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
-                                    : null,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                appThemes[i].name,
-                                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (i != appThemes.length - 1) const SizedBox(width: 24),
-                      ],
-                    ],
                   ),
                 ),
                 const SizedBox(height: 24),
