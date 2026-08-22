@@ -72,7 +72,7 @@ const List<TreeSpecies> treeSpecies = [
   ),
   TreeSpecies(
     id: 'gold',
-    name: 'Золотое Дерево',
+    name: 'Золотое дерево',
     icon: Icons.auto_awesome_rounded,
     color: Color(0xFFFFB300),
     unlockAt: 30,
@@ -85,6 +85,10 @@ TreeSpecies speciesById(String id) {
     orElse: () => treeSpecies.first,
   );
 }
+
+/// Переводит первую букву строки в нижний регистр — используется, когда имя
+/// вида дерева подставляется в середину предложения (а не в его начало).
+String lower1(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
 
 // ---------------------------------------------------------------------------
 // Модель данных сеанса
@@ -174,13 +178,13 @@ class NotificationService {
   static Future<void> showTestNotification() async {
     const androidDetails = AndroidNotificationDetails(
       _testChannelId,
-      'Тестовые Уведомления',
-      channelDescription: 'Проверка Того, Что Уведомления Реально Доставляются',
+      'Тестовые уведомления',
+      channelDescription: 'Проверка того, что уведомления реально доставляются',
       importance: Importance.max,
       priority: Priority.high,
     );
     const details = NotificationDetails(android: androidDetails);
-    await _plugin.show(0, 'Grove', 'Уведомления Работают!', details);
+    await _plugin.show(0, 'Grove', 'Уведомления работают!', details);
   }
 
   // Не используем часовые пояса устройства напрямую (их не всегда можно
@@ -194,8 +198,8 @@ class NotificationService {
 
     const androidDetails = AndroidNotificationDetails(
       _dailyChannelId,
-      'Ежедневные Напоминания',
-      channelDescription: 'Напоминание Посадить Дерево И Сосредоточиться',
+      'Ежедневные напоминания',
+      channelDescription: 'Напоминание посадить дерево и сосредоточиться',
       importance: Importance.max,
       priority: Priority.high,
     );
@@ -211,8 +215,8 @@ class NotificationService {
     try {
       await _plugin.zonedSchedule(
         1,
-        'Пора Сосредоточиться',
-        'Посадите Дерево И Не Отвлекайтесь',
+        'Пора сосредоточиться',
+        'Посадите дерево и не отвлекайтесь',
         scheduled,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -228,8 +232,8 @@ class NotificationService {
       try {
         await _plugin.zonedSchedule(
           1,
-          'Пора Сосредоточиться',
-          'Посадите Дерево И Не Отвлекайтесь',
+          'Пора сосредоточиться',
+          'Посадите дерево и не отвлекайтесь',
           scheduled,
           details,
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -255,11 +259,7 @@ class NotificationService {
 String _capitalize(String input) {
   final trimmed = input.trim();
   if (trimmed.isEmpty) return trimmed;
-  return trimmed
-      .split(' ')
-      .where((w) => w.isNotEmpty)
-      .map((w) => w[0].toUpperCase() + w.substring(1))
-      .join(' ');
+  return trimmed[0].toUpperCase() + trimmed.substring(1);
 }
 
 class AppState extends ChangeNotifier {
@@ -366,12 +366,6 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
-  void setTheme(int index) {
-    themeIndex = index;
-    notifyListeners();
-    _persist();
-  }
-
   void setSpecies(String id) {
     selectedSpeciesId = id;
     notifyListeners();
@@ -411,9 +405,9 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
-  Future<void> resetSettings() async {
-    // Сбрасывает все настройки и регистрацию — пользователь возвращается на
-    // экран приветствия. Лес (history) не трогаем.
+  /// Полный сброс: настройки, регистрация и лес. Пользователь возвращается
+  /// на экран приветствия.
+  Future<void> resetEverything() async {
     userName = '';
     lastName = '';
     selectedDuration = 15;
@@ -424,6 +418,7 @@ class AppState extends ChangeNotifier {
     reminderHour = 20;
     reminderMinute = 0;
     themeIndex = 0;
+    history.clear();
     await NotificationService.cancelDailyReminder();
     notifyListeners();
     await _persist();
@@ -431,12 +426,6 @@ class AppState extends ChangeNotifier {
 
   void addSession(FocusSession session) {
     history.insert(0, session);
-    notifyListeners();
-    _persist();
-  }
-
-  void clearHistory() {
-    history.clear();
     notifyListeners();
     _persist();
   }
@@ -507,8 +496,8 @@ String pluralizeRu(int n, String one, String few, String many) {
 String formatMinutes(int totalMinutes) {
   final hours = totalMinutes ~/ 60;
   final minutes = totalMinutes % 60;
-  if (hours == 0) return '$minutes Мин';
-  return '$hours Ч $minutes Мин';
+  if (hours == 0) return '$minutes мин';
+  return '$hours ч $minutes мин';
 }
 
 IconData growthIcon(double growth, TreeSpecies species) {
@@ -663,8 +652,91 @@ class _AppToastState extends State<_AppToast> with SingleTickerProviderStateMixi
   }
 }
 
-// ---------------------------------------------------------------------------
-// Темы оформления
+/// Красивый диалог подтверждения вместо стандартного AlertDialog — с иконкой
+/// и кнопками в одну строку, в стиле остального приложения.
+Future<bool> showAppConfirmDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  IconData icon = Icons.help_outline_rounded,
+  bool destructive = false,
+}) async {
+  final scheme = Theme.of(context).colorScheme;
+  final result = await showDialog<bool>(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.45),
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: destructive ? scheme.errorContainer : scheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: destructive ? scheme.error : scheme.primary),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: scheme.onSurface),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      side: BorderSide(color: scheme.outlineVariant),
+                      foregroundColor: scheme.onSurface,
+                    ),
+                    child: const Text('Отмена'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: destructive ? scheme.error : const Color(0xFF43A047),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(confirmLabel),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  return result ?? false;
+}
+
 // ---------------------------------------------------------------------------
 // Корневой виджет
 // ---------------------------------------------------------------------------
@@ -808,13 +880,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Выращивайте Деревья, Оставаясь Сосредоточенными',
+                  'Выращивайте деревья, оставаясь сосредоточенными',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 40),
                 Text(
-                  'Как Вас Зовут?',
+                  'Как вас зовут?',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -840,7 +912,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Введите Имя, Чтобы Продолжить';
+                      return 'Введите имя, чтобы продолжить';
                     }
                     return null;
                   },
@@ -917,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_isFocusing &&
         (state == AppLifecycleState.paused ||
             state == AppLifecycleState.inactive)) {
-      _killTree(reason: 'Вы Покинули Приложение! Дерево Погибло');
+      _killTree(reason: 'Вы покинули приложение! Дерево погибло');
     }
   }
 
@@ -967,13 +1039,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (newlyUnlocked.isNotEmpty) {
       showAppSnackBar(
         context,
-        'Новый Вид Открыт: ${newlyUnlocked.first.name}!',
+        'Новый вид открыт: ${lower1(newlyUnlocked.first.name)}!',
         icon: Icons.auto_awesome_rounded,
       );
     } else {
       showAppSnackBar(
         context,
-        'Дерево Выросло! Отличная Работа',
+        'Дерево выросло! Отличная работа',
         icon: Icons.emoji_events_rounded,
       );
     }
@@ -997,28 +1069,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _confirmGiveUp() async {
-    final scheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Сдаться?'),
-        content: const Text('Если Вы Прервёте Сеанс Сейчас, Дерево Погибнет.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Продолжить'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: scheme.error),
-            child: const Text('Сдаться'),
-          ),
-        ],
-      ),
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: 'Сдаться?',
+      message: 'Если вы прервёте сеанс сейчас, дерево погибнет.',
+      confirmLabel: 'Сдаться',
+      icon: Icons.local_florist_outlined,
+      destructive: true,
     );
-    if (confirmed == true) {
-      _killTree(reason: 'Вы Сдались... Дерево Погибло');
+    if (confirmed) {
+      _killTree(reason: 'Вы сдались... Дерево погибло');
     }
   }
 
@@ -1033,12 +1093,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             return AlertDialog(
               shape:
                   RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('Своё Время'),
+              title: const Text('Своё время'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '${value.round()} ${pluralizeRu(value.round(), 'Минута', 'Минуты', 'Минут')}',
+                    '${value.round()} ${pluralizeRu(value.round(), 'минута', 'минуты', 'минут')}',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
@@ -1092,7 +1152,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               } else {
                 showAppSnackBar(
                   context,
-                  'Откроется После ${species.unlockAt} ${pluralizeRu(species.unlockAt, 'Дерева', 'Деревьев', 'Деревьев')}',
+                  'Откроется после ${species.unlockAt} ${pluralizeRu(species.unlockAt, 'дерева', 'деревьев', 'деревьев')}',
                   icon: Icons.lock_outline_rounded,
                 );
               }
@@ -1135,42 +1195,68 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Кнопка-«пилюля» такого же вида, что и карточки видов деревьев —
+  /// гарантированно тот же box-model, что убирает малейшие расхождения в
+  /// выравнивании, которые были у стандартных ChoiceChip/ActionChip.
+  Widget _pillButton(
+    ColorScheme scheme, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    IconData? icon,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? scheme.primaryContainer : scheme.surfaceVariant.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDurationChips(ColorScheme scheme) {
-    const presets = [5, 10, 15, 25, 30, 45, 60];
+    const presets = [5, 10, 15, 25];
+    final isCustom = !presets.contains(widget.appState.selectedDuration);
     return Wrap(
       spacing: 10,
       runSpacing: 10,
       children: [
-        ...presets.map((minutes) => ChoiceChip(
-              label: Text('$minutes Мин'),
+        ...presets.map((minutes) => _pillButton(
+              scheme,
+              label: '$minutes мин',
               selected: widget.appState.selectedDuration == minutes,
-              onSelected: (_) => widget.appState.setDuration(minutes),
-              selectedColor: scheme.primaryContainer,
-              backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
-              labelStyle: TextStyle(
-                color: widget.appState.selectedDuration == minutes
-                    ? scheme.onPrimaryContainer
-                    : scheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: scheme.outlineVariant),
-              ),
+              onTap: () => widget.appState.setDuration(minutes),
             )),
-        ActionChip(
-          avatar: Icon(Icons.tune_rounded, size: 18, color: scheme.onSurfaceVariant),
-          label: Text(
-            presets.contains(widget.appState.selectedDuration)
-                ? 'Своё'
-                : '${widget.appState.selectedDuration} Мин',
-          ),
-          onPressed: _pickCustomDuration,
-          backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: scheme.outlineVariant),
-          ),
+        _pillButton(
+          scheme,
+          label: isCustom ? '${widget.appState.selectedDuration} мин' : 'своё',
+          selected: isCustom,
+          icon: Icons.tune_rounded,
+          onTap: _pickCustomDuration,
         ),
       ],
     );
@@ -1227,7 +1313,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Вид Дерева',
+                      'Вид дерева',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1247,7 +1333,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Время Фокуса',
+                      'Время фокуса',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1303,7 +1389,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Text(
                           _isFocusing
                               ? '${_secondsRemaining ~/ 60}:${(_secondsRemaining % 60).toString().padLeft(2, '0')}'
-                              : 'Посадите ${species.name} На ${widget.appState.selectedDuration} ${pluralizeRu(widget.appState.selectedDuration, 'Минуту', 'Минуты', 'Минут')}',
+                              : 'Посадите ${lower1(species.name)} на ${widget.appState.selectedDuration} ${pluralizeRu(widget.appState.selectedDuration, 'минуту', 'минуты', 'минут')}',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 20,
@@ -1327,7 +1413,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Не Выходите Из Приложения — Дерево Погибнет',
+                            'Не выходите из приложения — дерево погибнет',
                             style:
                                 TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                             textAlign: TextAlign.center,
@@ -1358,7 +1444,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         )
                       : FilledButton(
                           onPressed: _startFocus,
-                          child: const Text('Посадить Дерево'),
+                          child: const Text('Посадить дерево'),
                         ),
                 ),
               ),
@@ -1402,29 +1488,29 @@ class StatsScreen extends StatelessWidget {
                   children: [
                     _StatCard(
                       icon: Icons.park_rounded,
-                      label: 'Деревьев Выросло',
+                      label: 'Деревьев выросло',
                       value: '${appState.successfulSessions}',
                     ),
                     _StatCard(
                       icon: Icons.timer_outlined,
-                      label: 'Время В Фокусе',
+                      label: 'Время в фокусе',
                       value: formatMinutes(appState.totalFocusMinutes),
                     ),
                     _StatCard(
                       icon: Icons.local_fire_department_rounded,
-                      label: 'Серия Дней',
+                      label: 'Серия дней',
                       value: '${appState.currentStreak}',
                     ),
                     _StatCard(
                       icon: Icons.percent_rounded,
-                      label: 'Успешных Сеансов',
+                      label: 'Успешных сеансов',
                       value: '${(appState.successRate * 100).round()}%',
                     ),
                   ],
                 ),
                 const SizedBox(height: 28),
                 Text(
-                  'Мой Лес',
+                  'Мой лес',
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w700, color: scheme.onSurface),
                 ),
@@ -1442,7 +1528,7 @@ class StatsScreen extends StatelessWidget {
                         Icon(Icons.forest_outlined, size: 40, color: scheme.onSurfaceVariant),
                         const SizedBox(height: 10),
                         Text(
-                          'Пока Нет Посаженных Деревьев',
+                          'Пока нет посаженных деревьев',
                           style: TextStyle(color: scheme.onSurfaceVariant),
                         ),
                       ],
@@ -1463,7 +1549,7 @@ class StatsScreen extends StatelessWidget {
                       final species = speciesById(session.speciesId);
                       return Tooltip(
                         message:
-                            '${session.date.day}.${session.date.month}.${session.date.year} · ${session.durationMinutes} Мин',
+                            '${session.date.day}.${session.date.month}.${session.date.year} · ${session.durationMinutes} мин',
                         child: Container(
                           decoration: BoxDecoration(
                             color: session.success
@@ -1483,7 +1569,7 @@ class StatsScreen extends StatelessWidget {
                   ),
                 const SizedBox(height: 28),
                 Text(
-                  'Виды Деревьев',
+                  'Виды деревьев',
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w700, color: scheme.onSurface),
                 ),
@@ -1528,7 +1614,7 @@ class StatsScreen extends StatelessWidget {
                           if (!unlocked) ...[
                             const SizedBox(height: 2),
                             Text(
-                              '${species.unlockAt} ${pluralizeRu(species.unlockAt, 'Дерево', 'Дерева', 'Деревьев')}',
+                              '${species.unlockAt} ${pluralizeRu(species.unlockAt, 'дерево', 'дерева', 'деревьев')}',
                               style:
                                   TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
                               textAlign: TextAlign.center,
@@ -1567,7 +1653,7 @@ class StatsScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${species.name} · ${session.durationMinutes} ${pluralizeRu(session.durationMinutes, 'Минута', 'Минуты', 'Минут')} · ${session.date.day}.${session.date.month.toString().padLeft(2, '0')}.${session.date.year}',
+                              '${species.name} · ${session.durationMinutes} ${pluralizeRu(session.durationMinutes, 'минута', 'минуты', 'минут')} · ${session.date.day}.${session.date.month.toString().padLeft(2, '0')}.${session.date.year}',
                               style: TextStyle(color: scheme.onSurface),
                             ),
                           ),
@@ -1637,7 +1723,7 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Изменить Имя'),
+        title: const Text('Изменить имя'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1702,72 +1788,25 @@ class SettingsScreen extends StatelessWidget {
     if (picked != null) {
       await appState.setReminderTime(picked.hour, picked.minute);
       if (context.mounted) {
-        showAppSnackBar(context, 'Время Напоминания Обновлено', icon: Icons.alarm_rounded);
+        showAppSnackBar(context, 'Время напоминания обновлено', icon: Icons.alarm_rounded);
       }
     }
   }
 
-  Future<void> _sendTestNotification(BuildContext context) async {
-    await NotificationService.showTestNotification();
-    if (context.mounted) {
-      showAppSnackBar(
-        context,
-        'Уведомление Отправлено — Проверьте Шторку',
-        icon: Icons.notifications_active_rounded,
-      );
-    }
-  }
-
-  Future<void> _confirmResetSettings(BuildContext context) async {
-    final scheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Сбросить Настройки?'),
-        content: const Text(
-            'Все Настройки И Регистрация Будут Сброшены — Вы Вернётесь На Экран Приветствия. Лес И Прогресс Останутся Как Есть.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: scheme.error),
-            child: const Text('Сбросить'),
-          ),
-        ],
-      ),
+  Future<void> _confirmResetEverything(BuildContext context) async {
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: 'Сбросить все настройки?',
+      message:
+          'Все данные будут удалены без возможности восстановления: лес, регистрация и настройки. Вы вернётесь на экран приветствия.',
+      confirmLabel: 'Сбросить',
+      icon: Icons.restart_alt_rounded,
+      destructive: true,
     );
-    if (confirmed == true) {
-      await appState.resetSettings();
+    if (confirmed) {
+      await appState.resetEverything();
       if (context.mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-    }
-  }
-
-  Future<void> _confirmClearHistory(BuildContext context) async {
-    final scheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Очистить Лес?'),
-        content: const Text(
-            'Вся История Посаженных Деревьев Будет Удалена Без Возможности Восстановления.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: scheme.error),
-            child: const Text('Очистить'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      appState.clearHistory();
-      if (context.mounted) {
-        showAppSnackBar(context, 'Лес Очищен', icon: Icons.delete_outline_rounded);
       }
     }
   }
@@ -1798,7 +1837,7 @@ class SettingsScreen extends StatelessWidget {
                       child: Icon(Icons.person_rounded, color: scheme.primary),
                     ),
                     title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: const Text('Изменить Имя'),
+                    subtitle: const Text('Изменить имя'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => _editName(context),
                   ),
@@ -1816,8 +1855,8 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       SwitchListTile(
-                        title: const Text('Ежедневное Напоминание'),
-                        subtitle: const Text('Напоминать Посадить Дерево'),
+                        title: const Text('Ежедневное напоминание'),
+                        subtitle: const Text('Напоминать посадить дерево'),
                         value: appState.notificationsEnabled,
                         onChanged: (v) => appState.toggleNotifications(v),
                         secondary: const Icon(Icons.notifications_outlined),
@@ -1825,23 +1864,16 @@ class SettingsScreen extends StatelessWidget {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.alarm_rounded),
-                        title: const Text('Время Напоминания'),
+                        title: const Text('Время напоминания'),
                         subtitle: Text(formatTimeOfDay(appState.reminderHour, appState.reminderMinute)),
                         trailing: const Icon(Icons.chevron_right_rounded),
                         enabled: appState.notificationsEnabled,
                         onTap: () => _pickReminderTime(context),
                       ),
                       const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.send_rounded),
-                        title: const Text('Отправить Тестовое Уведомление'),
-                        subtitle: const Text('Проверьте, Что Уведомления Реально Приходят'),
-                        onTap: () => _sendTestNotification(context),
-                      ),
-                      const Divider(height: 1),
                       SwitchListTile(
                         title: const Text('Звук'),
-                        subtitle: const Text('Звук При Завершении Сеанса'),
+                        subtitle: const Text('Звук при завершении сеанса'),
                         value: appState.soundEnabled,
                         onChanged: appState.toggleSound,
                         secondary: const Icon(Icons.volume_up_outlined),
@@ -1849,7 +1881,7 @@ class SettingsScreen extends StatelessWidget {
                       const Divider(height: 1),
                       SwitchListTile(
                         title: const Text('Вибрация'),
-                        subtitle: const Text('Вибрация При Событиях'),
+                        subtitle: const Text('Вибрация при событиях'),
                         value: appState.vibrationEnabled,
                         onChanged: appState.toggleVibration,
                         secondary: const Icon(Icons.vibration_rounded),
@@ -1861,7 +1893,7 @@ class SettingsScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
-                    'Если Уведомления Не Приходят: Откройте Настройки Телефона → Приложения → Grove → Уведомления, И Отключите Ограничение Батареи/Автозапуска (Особенно На Xiaomi, Huawei, Honor).',
+                    'Если уведомления не приходят: откройте настройки телефона → приложения → Grove → уведомления, и отключите ограничение батареи/автозапуска (особенно на Xiaomi, Huawei, Honor).',
                     style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, height: 1.4),
                   ),
                 ),
@@ -1875,21 +1907,10 @@ class SettingsScreen extends StatelessWidget {
                     color: scheme.surfaceVariant.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.restart_alt_rounded),
-                        title: const Text('Сбросить Настройки'),
-                        subtitle: const Text('Лес И Прогресс Не Затронуты'),
-                        onTap: () => _confirmResetSettings(context),
-                      ),
-                      Divider(height: 1, color: scheme.outlineVariant.withOpacity(0.3)),
-                      ListTile(
-                        leading: Icon(Icons.delete_outline_rounded, color: scheme.error),
-                        title: Text('Очистить Историю Леса', style: TextStyle(color: scheme.error)),
-                        onTap: () => _confirmClearHistory(context),
-                      ),
-                    ],
+                  child: ListTile(
+                    leading: Icon(Icons.restart_alt_rounded, color: scheme.error),
+                    title: Text('Сбросить все настройки', style: TextStyle(color: scheme.error)),
+                    onTap: () => _confirmResetEverything(context),
                   ),
                 ),
                 const SizedBox(height: 24),
