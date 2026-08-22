@@ -505,8 +505,8 @@ String pluralizeRu(int n, String one, String few, String many) {
 String formatMinutes(int totalMinutes) {
   final hours = totalMinutes ~/ 60;
   final minutes = totalMinutes % 60;
-  if (hours == 0) return '$minutes мин';
-  return '$hours ч $minutes мин';
+  if (hours == 0) return '$minutes Мин.';
+  return '$hours ч $minutes Мин.';
 }
 
 IconData growthIcon(double growth, TreeSpecies species) {
@@ -907,6 +907,32 @@ class _MyAppState extends State<MyApp> {
 // Экран регистрации
 // ---------------------------------------------------------------------------
 
+class _RegistrationFeatureRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _RegistrationFeatureRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: scheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 13, color: scheme.onSurface),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class RegistrationScreen extends StatefulWidget {
   final AppState appState;
   const RegistrationScreen({super.key, required this.appState});
@@ -1011,7 +1037,33 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 28),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer.withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    children: [
+                      _RegistrationFeatureRow(
+                        icon: Icons.park_rounded,
+                        text: 'Растите виртуальный лес во время фокуса',
+                      ),
+                      Divider(height: 1, indent: 16, endIndent: 16, color: scheme.outlineVariant.withOpacity(0.3)),
+                      _RegistrationFeatureRow(
+                        icon: Icons.local_fire_department_rounded,
+                        text: 'Держите серию дней подряд',
+                      ),
+                      Divider(height: 1, indent: 16, endIndent: 16, color: scheme.outlineVariant.withOpacity(0.3)),
+                      _RegistrationFeatureRow(
+                        icon: Icons.notifications_active_rounded,
+                        text: 'Получайте напоминания не отвлекаться',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
                 Text(
                   'Как вас зовут?',
                   style: TextStyle(
@@ -1354,20 +1406,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildDurationRow(ColorScheme scheme) {
-    const presets = [5, 10, 15, 25];
+    const presets = [5, 10, 15];
     final isCustom = !presets.contains(widget.appState.selectedDuration);
     return Row(
       children: [
         for (final minutes in presets)
           _durationSegment(
             scheme,
-            label: '$minutes мин',
+            label: '$minutes Мин.',
             selected: widget.appState.selectedDuration == minutes,
             onTap: () => widget.appState.setDuration(minutes),
           ),
         _durationSegment(
           scheme,
-          label: isCustom ? '${widget.appState.selectedDuration} мин' : 'Своё',
+          label: isCustom ? '${widget.appState.selectedDuration} Мин.' : 'Своё',
           selected: isCustom,
           icon: Icons.tune_rounded,
           onTap: _pickCustomDuration,
@@ -1396,7 +1448,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           title: Text(fullName),
           actions: [
             IconButton(
-              icon: const Icon(Icons.analytics_rounded),
+              icon: const Icon(Icons.leaderboard_rounded),
               tooltip: 'Статистика',
               onPressed: _isFocusing
                   ? null
@@ -1469,8 +1521,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: scheme.surfaceVariant.withOpacity(0.4),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          scheme.primaryContainer.withOpacity(0.35),
+                          scheme.surfaceVariant.withOpacity(0.35),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.08),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1622,65 +1688,6 @@ class StatsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
-                Text(
-                  'Мой лес',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700, color: scheme.onSurface),
-                ),
-                const SizedBox(height: 12),
-                if (history.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(28),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceVariant.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(Icons.forest_outlined, size: 40, color: scheme.onSurfaceVariant),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Пока нет посаженных деревьев',
-                          style: TextStyle(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 5,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                    ),
-                    itemCount: history.length,
-                    itemBuilder: (context, index) {
-                      final session = history[index];
-                      final species = speciesById(session.speciesId);
-                      return Tooltip(
-                        message:
-                            '${session.date.day}.${session.date.month}.${session.date.year} · ${session.durationMinutes} мин',
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: session.success
-                                ? species.color.withOpacity(0.18)
-                                : scheme.errorContainer.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            session.success
-                                ? species.icon
-                                : Icons.local_florist_outlined,
-                            color: session.success ? species.color : scheme.onErrorContainer,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                 const SizedBox(height: 28),
                 Text(
                   'Виды деревьев',
@@ -1908,6 +1915,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       initialTime: TimeOfDay(hour: appState.reminderHour, minute: appState.reminderMinute),
       initialEntryMode: TimePickerEntryMode.inputOnly,
+      builder: (context, child) {
+        // Формат 12/24 часа Flutter берёт из настроек ОС устройства, а не из
+        // локали приложения — на части телефонов там стоит 12-часовой формат
+        // с AM/PM, из-за чего ввод "20" воспринимался как недопустимый.
+        // Принудительно включаем 24-часовой формат независимо от настроек.
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       await appState.setReminderTime(picked.hour, picked.minute);
@@ -1922,7 +1939,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
       title: 'Сбросить все настройки?',
       message:
-          'Все данные будут удалены без возможности восстановления: лес, регистрация и настройки. Вы вернётесь на экран приветствия.',
+          'Все данные будут удалены без возможности восстановления.',
       confirmLabel: 'Сбросить',
       icon: Icons.restart_alt_rounded,
       destructive: true,
@@ -1952,36 +1969,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       listenable: appState,
       builder: (context, _) {
         final scheme = Theme.of(context).colorScheme;
-        final fullName = '${appState.userName} ${appState.lastName}'.trim();
         return Scaffold(
           appBar: AppBar(title: const Text('Настройки')),
           body: SafeArea(
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceVariant.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: scheme.primaryContainer,
-                      child: Icon(Icons.person_rounded, color: scheme.primary, size: 18),
-                    ),
-                    title: Text(
-                      fullName,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                    ),
-                    subtitle: const Text('Изменить имя', style: TextStyle(fontSize: 12)),
-                    trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                    onTap: () => _editName(context),
-                  ),
-                ),
                 const SizedBox(height: 24),
                 Text('Уведомления',
                     style: TextStyle(
@@ -2035,6 +2028,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Text(
                     'Если уведомления не приходят: откройте настройки телефона → приложения → Grove → уведомления, и отключите ограничение батареи/автозапуска (особенно на Xiaomi, Huawei, Honor).',
                     style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text('Прогресс',
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceVariant.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: ListTile(
+                    leading: Icon(Icons.copy_all_rounded, color: scheme.primary),
+                    title: const Text('Скопировать статистику'),
+                    subtitle: const Text('Сводка прогресса — в буфер обмена'),
+                    onTap: () {
+                      final summary =
+                          'Grove — моя статистика\n'
+                          'Деревьев выросло: ${appState.successfulSessions}\n'
+                          'Время в фокусе: ${formatMinutes(appState.totalFocusMinutes)}\n'
+                          'Серия дней: ${appState.currentStreak}\n'
+                          'Успешных сеансов: ${(appState.successRate * 100).round()}%';
+                      Clipboard.setData(ClipboardData(text: summary));
+                      showAppSnackBar(context, 'Статистика скопирована', icon: Icons.copy_all_rounded);
+                    },
                   ),
                 ),
                 const SizedBox(height: 24),
