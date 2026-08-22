@@ -32,6 +32,28 @@ jobs:
     - name: generate android files
       run: flutter create . --platforms=android
 
+    - name: add notification permissions to AndroidManifest
+      run: |
+        python3 - <<'EOF'
+        import re
+
+        path = "android/app/src/main/AndroidManifest.xml"
+        with open(path) as f:
+            content = f.read()
+
+        perms = (
+            '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n'
+            '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n'
+            '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n'
+            '    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n'
+        )
+
+        content = re.sub(r'(<manifest[^>]*>)', r'\1\n' + perms, content, count=1)
+
+        with open(path, "w") as f:
+            f.write(content)
+        EOF
+
     - name: build apk
       run: flutter build apk --release
 
